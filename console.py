@@ -113,28 +113,41 @@ class HBNBCommand(cmd.Cmd):
         """ Overrides the emptyline method of CMD """
         pass
 
+     def dic_create(self, args):
+        """creates a dictionary from a list"""
+        dic = {}
+        for arg in args:
+            if "=" in arg:
+                vals_toa_add = arg.split('=', 1)
+                key = vals_toa_add[0]
+                value = vals_toa_add[1]
+                if value[0] == value[-1] == '"':
+                    value = value.replace('"', '').replace('_', ' ')
+                else:
+                    try:
+                        value = int(value)
+                    except:
+                        try:
+                            value = float(value)
+                        except:
+                            continue
+                dic[key] = value
+        return (dic)
+
     def do_create(self, args):
-        """ Create an object of any class"""
-        my_list = args.split(' ')
-        if not args:
+        """Creates a new instance of BaseModel """
+        args = args.split()
+        if len(args) == 0:
             print("** class name missing **")
             return
-        elif my_list[0] not in HBNBCommand.classes:
+        if args[0] in HBNBCommand.classes:
+            dic = self.dic_creator(args[1:])
+            instance = HBNBCommand.classes[args[0]](**dic)
+        else:
             print("** class doesn't exist **")
             return
-        new_instance = HBNBCommand.classes[my_list[0]]()
-        print(new_instance.id)
-        for params in my_list[1:]:
-            key_value = params.split('=')
-            key = key_value[0]
-            value = key_value[1]
-            table = {
-                34: None,  # Replace " with Nothing
-                95: 32  # Replace _ with space
-            }
-            value = value.translate(table)
-            setattr(new_instance, key, value)
-        new_instance.save()  # Save to storage
+        print(instance.id)
+        instance.save()
 
     def help_create(self):
         """ Help information for the create method """
