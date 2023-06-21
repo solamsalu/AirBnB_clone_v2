@@ -1,66 +1,62 @@
-#!/usr/bin/python3
-"""This module defines a class to manage file storage for hbnb clone"""
-import json
+#!/usr/bin/pyhthon3
+"""Module for the test of MySQL"""
+import MySQLdb
+import unittest
+from unittest.mock import patch
+import io
+from console import HBNBCommand
+from os import getenv
+from models.engine.db_storage import DBStorage
+import os
 
 
-class FileStorage:
-    """This class manages storage of hbnb models in JSON format"""
-    __file_path = 'file.json'
-    __objects = {}
+@unittest.skipIf(os.getenv('HBNB_TYPE_STORAGE') != 'db', "Not DBStorage")
+class TestMySQL(unittest.TestCase):
+    """Test for the SQL database"""
+    conn = None
+    cur = None
 
-    def all(self, cls=None):
-        """Returns a dictionary of models currently in storage"""
-        filtered_by_class = {}
-        if cls:
-            for key, value in FileStorage.__objects.items():
-                if value.__class__ == cls:
-                    filtered_by_class[key] = value
-            return filtered_by_class
-        return FileStorage.__objects
+    def connection(self):
+        """Connect to MySQLdb"""
+        storage = DBStorage()
+        storage.reload()
+        self.conn = MySQLdb.connect(getenv('HBNB_MYSQL_HOST'),
+                                    getenv('HBNB_MYSQL_USER'),
+                                    getenv('HBNB_MYSQL_PWD'),
+                                    getenv('HBNB_MYSQL_DB'))
+        self.cur = self.conn.cursor()
 
-    def new(self, obj):
-        """Adds new object to storage dictionary"""
-        self.all().update({obj.to_dict()['__class__'] + '.' + obj.id: obj})
+    def disconnection(self):
+        """Disconnect from MySQLdb"""
+        self.cur.close()
+        self.conn.close()
+        self.conn = None
+        self.cur = None
 
-    def save(self):
-        """Saves storage dictionary to file"""
-        with open(FileStorage.__file_path, 'w') as f:
-            temp = {}
-            temp.update(FileStorage.__objects)
-            for key, val in temp.items():
-                temp[key] = val.to_dict()
-            json.dump(temp, f)
+    def test_create_state(self):
+        """Test create of a State"""
+        self.connection()
+        with patch('sys.stdout', new=io.StringIO()) as f:
+            HBNBCommand().onecmd('create State name="California"')
+        self.cur.execute("SELECT COUNT(*) FROM states")
+        res = self.cur.fetchone()[0]
+        self.assertEqual(res, 1)
+        self.disconnection()
 
-    def reload(self):
-        """Loads storage dictionary from file"""
-        from models.base_model import BaseModel
-        from models.user import User
-        from models.place import Place
-        from models.state import State
-        from models.city import City
-        from models.amenity import Amenity
-        from models.review import Review
+    def test_create_city(self):
+        """Test create of a City"""
+        self.connection()
+        with patch('sys.stdout', new=io.StringIO()) as f:
+            HBNBCommand().onecmd('create State name="California"')
+        id = f.getvalue()[:-1]
+        with patch('sys.stdout', new=io.StringIO()) as f:
+            HBNBCommand().onecmd(f'''create City state_id="{id}"
+                                 name="San_Francisco"''')
+        self.cur.execute("SELECT COUNT(*) FROM cities")
+        res = self.cur.fetchone()[0]
+        self.assertEqual(res, 1)
+        self.disconnection()
 
-        classes = {
-            'BaseModel': BaseModel, 'User': User, 'Place': Place,
-            'State': State, 'City': City, 'Amenity': Amenity,
-            'Review': Review
-        }
-        try:
-            temp = {}
-            with open(FileStorage.__file_path, 'r') as f:
-                temp = json.load(f)
-                for key, val in temp.items():
-                    self.all()[key] = classes[val['__class__']](**val)
-        except FileNotFoundError:
-            pass
 
-    def delete(self, obj=None):
-        ''' delete obj from __objects if it is inside '''
-        if obj:
-            key = '{}.{}'.format(type(obj).__name__, obj.id)
-            del FileStorage.__objects[key]
-
-    def close(self):
-        """ Deserialize JSON file to objects before leaving """
-        self.reload()
+if __name__ == '__main__':
+    unittest.main()
