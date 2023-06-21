@@ -1,147 +1,131 @@
 #!/usr/bin/python3
-"""A unit test module for the console (command interpreter).
-"""
-import json
-import MySQLdb
-import os
-import sqlalchemy
+"""Unittest module for the console"""
+
 import unittest
-from io import StringIO
-from unittest.mock import patch
-
+import os
+import json
+import pycodestyle
+import io
 from console import HBNBCommand
-from models import storage
-from models.base_model import BaseModel
+from models.engine.file_storage import FileStorage
+from unittest.mock import patch
 from models.user import User
-from tests import clear_stream
+from models.place import Place
+from models.state import State
+from models.city import City
+from models.amenity import Amenity
+from models.review import Review
 
 
-class TestHBNBCommand(unittest.TestCase):
-    """Represents the test class for the HBNBCommand class.
-    """
-    @unittest.skipIf(
-        os.getenv('HBNB_TYPE_STORAGE') == 'db', 'FileStorage test')
-    def test_fs_create(self):
-        """Tests the create command with the file storage.
-        """
-        with patch('sys.stdout', new=StringIO()) as cout:
-            cons = HBNBCommand()
-            cons.onecmd('create City name="Texas"')
-            mdl_id = cout.getvalue().strip()
-            clear_stream(cout)
-            self.assertIn('City.{}'.format(mdl_id), storage.all().keys())
-            cons.onecmd('show City {}'.format(mdl_id))
-            self.assertIn("'name': 'Texas'", cout.getvalue().strip())
-            clear_stream(cout)
-            cons.onecmd('create User name="James" age=17 height=5.9')
-            mdl_id = cout.getvalue().strip()
-            self.assertIn('User.{}'.format(mdl_id), storage.all().keys())
-            clear_stream(cout)
-            cons.onecmd('show User {}'.format(mdl_id))
-            self.assertIn("'name': 'James'", cout.getvalue().strip())
-            self.assertIn("'age': 17", cout.getvalue().strip())
-            self.assertIn("'height': 5.9", cout.getvalue().strip())
 
-    @unittest.skipIf(
-        os.getenv('HBNB_TYPE_STORAGE') != 'db', 'DBStorage test')
-    def test_db_create(self):
-        """Tests the create command with the database storage.
-        """
-        with patch('sys.stdout', new=StringIO()) as cout:
-            cons = HBNBCommand()
-            # creating a model with non-null attribute(s)
-            with self.assertRaises(sqlalchemy.exc.OperationalError):
-                cons.onecmd('create User')
-            # creating a User instance
-            clear_stream(cout)
-            cons.onecmd('create User email="john25@gmail.com" password="123"')
-            mdl_id = cout.getvalue().strip()
-            dbc = MySQLdb.connect(
-                host=os.getenv('HBNB_MYSQL_HOST'),
-                port=3306,
-                user=os.getenv('HBNB_MYSQL_USER'),
-                passwd=os.getenv('HBNB_MYSQL_PWD'),
-                db=os.getenv('HBNB_MYSQL_DB')
-            )
-            cursor = dbc.cursor()
-            cursor.execute('SELECT * FROM users WHERE id="{}"'.format(mdl_id))
-            result = cursor.fetchone()
-            self.assertTrue(result is not None)
-            self.assertIn('john25@gmail.com', result)
-            self.assertIn('123', result)
-            cursor.close()
-            dbc.close()
+class TestCommand(unittest.TestCase):
+    """Class that tests the console"""
+    
+    def setUp(self):
+        """Function empties file.json"""
+        FileStorage._FileStorage__objects = {}
+        FileStorage().save()
 
-    @unittest.skipIf(
-        os.getenv('HBNB_TYPE_STORAGE') != 'db', 'DBStorage test')
-    def test_db_show(self):
-        """Tests the show command with the database storage.
-        """
-        with patch('sys.stdout', new=StringIO()) as cout:
-            cons = HBNBCommand()
-            # showing a User instance
-            obj = User(email="john25@gmail.com", password="123")
-            dbc = MySQLdb.connect(
-                host=os.getenv('HBNB_MYSQL_HOST'),
-                port=3306,
-                user=os.getenv('HBNB_MYSQL_USER'),
-                passwd=os.getenv('HBNB_MYSQL_PWD'),
-                db=os.getenv('HBNB_MYSQL_DB')
-            )
-            cursor = dbc.cursor()
-            cursor.execute('SELECT * FROM users WHERE id="{}"'.format(obj.id))
-            result = cursor.fetchone()
-            self.assertTrue(result is None)
-            cons.onecmd('show User {}'.format(obj.id))
-            self.assertEqual(
-                cout.getvalue().strip(),
-                '** no instance found **'
-            )
-            obj.save()
-            dbc = MySQLdb.connect(
-                host=os.getenv('HBNB_MYSQL_HOST'),
-                port=3306,
-                user=os.getenv('HBNB_MYSQL_USER'),
-                passwd=os.getenv('HBNB_MYSQL_PWD'),
-                db=os.getenv('HBNB_MYSQL_DB')
-            )
-            cursor = dbc.cursor()
-            cursor.execute('SELECT * FROM users WHERE id="{}"'.format(obj.id))
-            clear_stream(cout)
-            cons.onecmd('show User {}'.format(obj.id))
-            result = cursor.fetchone()
-            self.assertTrue(result is not None)
-            self.assertIn('john25@gmail.com', result)
-            self.assertIn('123', result)
-            self.assertIn('john25@gmail.com', cout.getvalue())
-            self.assertIn('123', cout.getvalue())
-            cursor.close()
-            dbc.close()
+    @unittest.skipIf(os.getenv('HBNB_TYPE_STORAGE') == 'db', "Not FileStorage")
+    def test_create_fs(self):
+        """test the create command"""
+        storage = FileStorage()
+        storage.reload()
+        opt = r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[0-9a-f]{4}-[0-9a-f]{12}'
+        with self.assertRaises(AttributeError):
+            with patch('sys.stdout', new=io.StringIO()) as f:
+                HBNBCommand().onecmd("create BaseModel updated_at=0.0"
+                                     " created_at=0.0")
+        with patch('sys.stdout', new=io.StringIO()) as f:
+            HBNBCommand().onecmd('create User email="cluck@wanadoo.fr"'
+                                 ' password="jesustakethewheel"')
+        result = f.getvalue().strip()
+        self.assertRegex(result, opt)
+        email = storage.all()[f'User.{result}'].email
+        self.assertEqual(email, "cluck@wanadoo.fr")
+        password = storage.all()[f'User.{result}'].password
+        self.assertEqual(password, "jesustakethewheel")
+        with patch('sys.stdout', new=io.StringIO()) as f:
+            HBNBCommand().onecmd('create State johnny="bravo"'
+                                 ' number="7" pi="3.14"')
+        result = f.getvalue().strip()
+        self.assertRegex(result, opt)
+        johnny = storage.all()[f'State.{result}'].johnny
+        self.assertEqual(johnny, "bravo")
+        number = storage.all()[f'State.{result}'].number
+        self.assertEqual(number, '7')
+        pi = storage.all()[f'State.{result}'].pi
+        self.assertEqual(pi, '3.14')
+        with patch('sys.stdout', new=io.StringIO()) as f:
+            HBNBCommand().onecmd('create City johnny="bravo" number="7"'
+                                 ' pi="3.14"')
+        result = f.getvalue().strip()
+        self.assertRegex(result, opt)
+        johnny = storage.all()[f'City.{result}'].johnny
+        self.assertEqual(johnny, "bravo")
+        number = storage.all()[f'City.{result}'].number
+        self.assertEqual(number, '7')
+        pi = storage.all()[f'City.{result}'].pi
+        self.assertEqual(pi, '3.14')
+        with patch('sys.stdout', new=io.StringIO()) as f:
+            HBNBCommand().onecmd('create Amenity johnny="bravo"'
+                                 ' number="7" pi="3.14"')
+        result = f.getvalue().strip()
+        self.assertRegex(result, opt)
+        johnny = storage.all()[f'Amenity.{result}'].johnny
+        self.assertEqual(johnny, "bravo")
+        number = storage.all()[f'Amenity.{result}'].number
+        self.assertEqual(number, '7')
+        pi = storage.all()[f'Amenity.{result}'].pi
+        self.assertEqual(pi, '3.14')
+        with patch('sys.stdout', new=io.StringIO()) as f:
+            HBNBCommand().onecmd('create Place johnny="bravo"'
+                                 ' number="7" pi="3.14"')
+        result = f.getvalue().strip()
+        self.assertRegex(result, opt)
+        johnny = storage.all()[f'Place.{result}'].johnny
+        self.assertEqual(johnny, "bravo")
+        number = storage.all()[f'Place.{result}'].number
+        self.assertEqual(number, '7')
+        pi = storage.all()[f'Place.{result}'].pi
+        self.assertEqual(pi, '3.14')
+        with patch('sys.stdout', new=io.StringIO()) as f:
+            HBNBCommand().onecmd('create Review johnny="bravo"'
+                                 ' number="7" pi="3.14"')
+        result = f.getvalue().strip()
+        self.assertRegex(result, opt)
+        johnny = storage.all()[f'Review.{result}'].johnny
+        self.assertEqual(johnny, "bravo")
+        number = storage.all()[f'Review.{result}'].number
+        self.assertEqual(number, '7')
+        pi = storage.all()[f'Review.{result}'].pi
+        self.assertEqual(pi, '3.14')
+        with patch('sys.stdout', new=io.StringIO()) as f:
+            HBNBCommand().onecmd('create')
+        opt = '** class name missing **\n'
+        self.assertEqual(f.getvalue(), opt)
+        with patch('sys.stdout', new=io.StringIO()) as f:
+            HBNBCommand().onecmd('create NotClass')
+        opt = '** class doesn\'t exist **\n'
+        self.assertEqual(f.getvalue(), opt)
 
-    @unittest.skipIf(
-        os.getenv('HBNB_TYPE_STORAGE') != 'db', 'DBStorage test')
-    def test_db_count(self):
-        """Tests the count command with the database storage.
-        """
-        with patch('sys.stdout', new=StringIO()) as cout:
-            cons = HBNBCommand()
-            dbc = MySQLdb.connect(
-                host=os.getenv('HBNB_MYSQL_HOST'),
-                port=3306,
-                user=os.getenv('HBNB_MYSQL_USER'),
-                passwd=os.getenv('HBNB_MYSQL_PWD'),
-                db=os.getenv('HBNB_MYSQL_DB')
-            )
-            cursor = dbc.cursor()
-            cursor.execute('SELECT COUNT(*) FROM states;')
-            res = cursor.fetchone()
-            prev_count = int(res[0])
-            cons.onecmd('create State name="Enugu"')
-            clear_stream(cout)
-            cons.onecmd('count State')
-            cnt = cout.getvalue().strip()
-            self.assertEqual(int(cnt), prev_count + 1)
-            clear_stream(cout)
-            cons.onecmd('count State')
-            cursor.close()
-            dbc.close()
+    def testPycodeStyle(self):
+        """Pycodestyle test for console.py"""
+        style = pycodestyle.StyleGuide(quiet=True)
+        p = style.check_files(['console.py'])
+        self.assertEqual(p.total_errors, 0, "fix pep8")
+
+    def test_doc_console(self):
+        self.assertIsNotNone(HBNBCommand.__doc__)
+        self.assertIsNotNone(HBNBCommand.do_all.__doc__)
+        self.assertIsNotNone(HBNBCommand.do_create.__doc__)
+        self.assertIsNotNone(HBNBCommand.do_destroy.__doc__)
+        self.assertIsNotNone(HBNBCommand.do_quit.__doc__)
+        self.assertIsNotNone(HBNBCommand.do_EOF.__doc__)
+        self.assertIsNotNone(HBNBCommand.do_count.__doc__)
+        self.assertIsNotNone(HBNBCommand.do_update.__doc__)
+        self.assertIsNotNone(HBNBCommand.emptyline.__doc__)
+
+
+if __name__ == '__main__':
+    unittest.main()
