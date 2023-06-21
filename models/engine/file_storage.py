@@ -1,62 +1,69 @@
-#!/usr/bin/pyhthon3
-"""Module for the test of MySQL"""
-import MySQLdb
-import unittest
-from unittest.mock import patch
-import io
-from console import HBNBCommand
-from os import getenv
-from models.engine.db_storage import DBStorage
+#!/usr/bin/python3
+"""This module defines a class to manage file storage for hbnb clone"""
+import json
 import os
+from importlib import import_module
 
 
-@unittest.skipIf(os.getenv('HBNB_TYPE_STORAGE') != 'db', "Not DBStorage")
-class TestMySQL(unittest.TestCase):
-    """Test for the SQL database"""
-    conn = None
-    cur = None
+class FileStorage:
+    """This class manages storage of hbnb models in JSON format"""
+    __file_path = 'file.json'
+    __objects = {}
 
-    def connection(self):
-        """Connect to MySQLdb"""
-        storage = DBStorage()
-        storage.reload()
-        self.conn = MySQLdb.connect(getenv('HBNB_MYSQL_HOST'),
-                                    getenv('HBNB_MYSQL_USER'),
-                                    getenv('HBNB_MYSQL_PWD'),
-                                    getenv('HBNB_MYSQL_DB'))
-        self.cur = self.conn.cursor()
+    def __init__(self):
+        """Initializes a FileStorage instance"""
+        self.model_classes = {
+            'BaseModel': import_module('models.base_model').BaseModel,
+            'User': import_module('models.user').User,
+            'State': import_module('models.state').State,
+            'City': import_module('models.city').City,
+            'Amenity': import_module('models.amenity').Amenity,
+            'Place': import_module('models.place').Place,
+            'Review': import_module('models.review').Review
+        }
 
-    def disconnection(self):
-        """Disconnect from MySQLdb"""
-        self.cur.close()
-        self.conn.close()
-        self.conn = None
-        self.cur = None
+    def all(self, cls=None):
+        """Returns a dictionary of models currently in storage"""
+        if cls is None:
+            return self.__objects
+        else:
+            filtered_dict = {}
+            for key, value in self.__objects.items():
+                if type(value) is cls:
+                    filtered_dict[key] = value
+            return filtered_dict
 
-    def test_create_state(self):
-        """Test create of a State"""
-        self.connection()
-        with patch('sys.stdout', new=io.StringIO()) as f:
-            HBNBCommand().onecmd('create State name="California"')
-        self.cur.execute("SELECT COUNT(*) FROM states")
-        res = self.cur.fetchone()[0]
-        self.assertEqual(res, 1)
-        self.disconnection()
+    def delete(self, obj=None):
+        """Removes an object from the storage dictionary"""
+        if obj is not None:
+            obj_key = obj.to_dict()['__class__'] + '.' + obj.id
+            if obj_key in self.__objects.keys():
+                del self.__objects[obj_key]
 
-    def test_create_city(self):
-        """Test create of a City"""
-        self.connection()
-        with patch('sys.stdout', new=io.StringIO()) as f:
-            HBNBCommand().onecmd('create State name="California"')
-        id = f.getvalue()[:-1]
-        with patch('sys.stdout', new=io.StringIO()) as f:
-            HBNBCommand().onecmd(f'''create City state_id="{id}"
-                                 name="San_Francisco"''')
-        self.cur.execute("SELECT COUNT(*) FROM cities")
-        res = self.cur.fetchone()[0]
-        self.assertEqual(res, 1)
-        self.disconnection()
+    def new(self, obj):
+        """Adds new object to storage dictionary"""
+        self.__objects.update(
+            {obj.to_dict()['__class__'] + '.' + obj.id: obj}
+        )
 
+    def save(self):
+        """Saves storage dictionary to file"""
+        with open(self.__file_path, 'w') as file:
+            temp = {}
+            for key, val in self.__objects.items():
+                temp[key] = val.to_dict()
+            json.dump(temp, file)
 
-if __name__ == '__main__':
-    unittest.main()
+    def reload(self):
+        """Loads storage dictionary from file"""
+        classes = self.model_classes
+        if os.path.isfile(self.__file_path):
+            temp = {}
+            with open(self.__file_path, 'r') as file:
+                temp = json.load(file)
+                for key, val in temp.items():
+                    self.all()[key] = classes[val['__class__']](**val)
+
+    def close(self):
+        """Closes the storage engine."""
+        self.reload()
