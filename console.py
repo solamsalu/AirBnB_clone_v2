@@ -36,60 +36,9 @@ class HBNBCommand(cmd.Cmd):
             print('(hbnb)')
 
     def precmd(self, line):
-        """Reformat command line for advanced command syntax.
-
-        Usage: <class name>.<command>([<id> [<*args> or <**kwargs>]])
-        (Brackets denote optional fields in usage example.)
-        """
-        _cmd = _cls = _id = _args = ''  # initialize line elements
-
-        # scan for general formating - i.e '.', '(', ')'
-        if not ('.' in line and '(' in line and ')' in line):
-            return line
-
-        try:  # parse line left to right
-            pline = line[:]  # parsed line
-
-            # isolate <class name>
-            _cls = pline[:pline.find('.')]
-
-            # isolate and validate <command>
-            _cmd = pline[pline.find('.') + 1:pline.find('(')]
-            if _cmd not in HBNBCommand.dot_cmds:
-                raise Exception
-
-            # if parantheses contain arguments, parse them
-            pline = pline[pline.find('(') + 1:pline.find(')')]
-            if pline:
-                # partition args: (<id>, [<delim>], [<*args>])
-                pline = pline.partition(', ')  # pline convert to tuple
-
-                # isolate _id, stripping quotes
-                _id = pline[0].replace('\"', '')
-                # possible bug here:
-                # empty quotes register as empty _id when replaced
-
-                # if arguments exist beyond _id
-                pline = pline[2].strip()  # pline is now str
-                if pline:
-                    # check for *args or **kwargs
-                    if pline[0] == '{' and pline[-1] == '}'\
-                            and type(eval(pline)) is dict:
-                        _args = pline
-                    else:
-                        _args = pline.replace(',', '')
-                        # _args = _args.replace('\"', '')
-            line = ' '.join([_cmd, _cls, _id, _args])
-
-        except Exception as mess:
-            pass
-        finally:
             return line
 
     def postcmd(self, stop, line):
-        """Prints if isatty is false"""
-        if not sys.__stdin__.isatty():
-            print('(hbnb) ', end='')
         return stop
 
     def do_quit(self, command):
@@ -113,41 +62,8 @@ class HBNBCommand(cmd.Cmd):
         """ Overrides the emptyline method of CMD """
         pass
 
-     def dic_create(self, args):
-        """creates a dictionary from a list"""
-        dic = {}
-        for arg in args:
-            if "=" in arg:
-                vals_toa_add = arg.split('=', 1)
-                key = vals_toa_add[0]
-                value = vals_toa_add[1]
-                if value[0] == value[-1] == '"':
-                    value = value.replace('"', '').replace('_', ' ')
-                else:
-                    try:
-                        value = int(value)
-                    except:
-                        try:
-                            value = float(value)
-                        except:
-                            continue
-                dic[key] = value
-        return (dic)
-
     def do_create(self, args):
-        """Creates a new instance of BaseModel """
-        args = args.split()
-        if len(args) == 0:
-            print("** class name missing **")
-            return
-        if args[0] in HBNBCommand.classes:
-            dic = self.dic_creator(args[1:])
-            instance = HBNBCommand.classes[args[0]](**dic)
-        else:
-            print("** class doesn't exist **")
-            return
-        print(instance.id)
-        instance.save()
+        new_instance.save()  # Save to storage
 
     def help_create(self):
         """ Help information for the create method """
@@ -230,9 +146,9 @@ class HBNBCommand(cmd.Cmd):
             if args not in HBNBCommand.classes:
                 print("** class doesn't exist **")
                 return
-            for k, v in objects(HBNBCommand.classes[args]).items():
-                # if k.split('.')[0] == args:
-                print_list.append(str(v))
+            for k, v in objects.items():
+                if k.split('.')[0] == args:
+                    print_list.append(str(v))
         else:
             for k, v in objects.items():
                 print_list.append(str(v))
