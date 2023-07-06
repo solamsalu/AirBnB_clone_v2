@@ -10,7 +10,19 @@ from os.path import exists
 # Set the list of servers to deploy to
 # <IP web-01>, <IP web-02>
 env.hosts = ['3.83.238.226', '34.202.234.56']  
+env.user = 'ubuntu'
 
+def do_pack():
+    """ Fabric script that generates a .tgz archive from the contents of the...
+    ...web_static folder """
+    local("sudo mkdir -p versions")
+    date = datetime.now().strftime("%Y%m%d%H%M%S")
+    archive_path = "versions/web_static_{}.tgz".format(date)
+    result = local("sudo tar -cvzf {} web_static".format(archive_path))
+    if result.succeeded:
+        return archive_path
+    else:
+        return None
 
 def do_deploy(archive_path):
     """ distributes an archive to my web servers
