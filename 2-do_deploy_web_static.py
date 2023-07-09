@@ -13,7 +13,7 @@ env.user = 'ubuntu'
 def do_deploy(archive_path):
     """ distributes an archive to my web servers
     """
-    if path.exists(archive_path) is False:
+    if os.path.isfile(archive_path) is False:
         return False  # Returns False if the file at archive_path doesnt exist
     filename = archive_path.split('/')[-1]
     # so now filename is <web_static_2021041409349.tgz>
