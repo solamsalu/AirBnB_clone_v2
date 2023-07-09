@@ -10,34 +10,37 @@ from os.path
 env.hosts = ['52.91.150.219', '54.196.50.77']
 env.user = 'ubuntu'
 
-def do_deploy(archive_path):
-    """ distributes an archive to my web servers
+def do_pack():
+    """generates a .tgz archive from the contents of the web_static folder
     """
-    if os.path.isfile(archive_path) is False:
-        return False  # Returns False if the file at archive_path doesnt exist
-    filename = archive_path.split('/')[-1]
-    # so now filename is <web_static_2021041409349.tgz>
-    no_tgz = '/data/web_static/releases/' + "{}".format(filename.split('.')[0])
-    # curr = '/data/web_static/current'
-    tmp = "/tmp/" + filename
-
+    local("sudo mkdir -p versions")
+    date = datetime.now().strftime("%Y%m%d%H%M%S")
+    archive_path = "versions/web_static_{}.tgz".format(date)
+    result = local("sudo tar -cvzf {} web_static".format(archive_path))
+    if result.succeeded:
+        return archive_path
+    else:
+        """ return none if not succed """
+        return None
+def do_deploy(archive_path):
+    '''
+    Deploy archive to web server
+    '''
+    if not os.path.exists(archive_path):
+        return False
+    file_name = archive_path.split('/')[1]
+    file_path = '/data/web_static/releases/'
+    releases_path = file_path + file_name[:-4]
     try:
-        put(archive_path, "/tmp/")
-        # ^ Upload the archive to the /tmp/ directory of the web server
-        run("mkdir -p {}/".format(no_tgz))
-        # Uncompress the archive to the folder /data/web_static/releases/
-        # <archive filename without extension> on the web server
-        run("tar -xzf {} -C {}/".format(tmp, no_tgz))
-        run("rm {}".format(tmp))
-        run("mv {}/web_static/* {}/".format(no_tgz, no_tgz))
-        run("rm -rf {}/web_static".format(no_tgz))
-        # ^ Delete the archive from the web server
-        run("rm -rf /data/web_static/current")
-        # Delete the symbolic link /data/web_static/current from the web server
-        run("ln -s {}/ /data/web_static/current".format(no_tgz))
-        # Create a new the symbolic link /data/web_static/current on the
-        # web server, linked to the new version of your code
-        # (/data/web_static/releases/<archive filename without extension>)
+        put(archive_path, '/tmp/')
+        run('sudo mkdir -p {}'.format(releases_path))
+        run('sudo tar -xzf /tmp/{} -C {}'.format(file_name, releases_path))
+        run('sudo rm /tmp/{}'.format(file_name))
+        run('sudo mv {}/web_static/* {}/'.format(releases_path, releases_path))
+        run('sudo rm -rf {}/web_static'.format(releases_path))
+        run('sudo rm -rf /data/web_static/current')
+        run('sudo ln -s {} /data/web_static/current'.format(releases_path))
+        print('New version deployed!')
         return True
     except:
         return False
